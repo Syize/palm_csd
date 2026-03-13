@@ -26,7 +26,6 @@ import csv
 import logging
 import os
 from enum import Enum
-from importlib.resources import files
 
 # remove Dict here and replace by dict below once Python >=3.9 could be used
 from pathlib import Path
@@ -79,7 +78,7 @@ def _populate_defaults() -> Dict[str, DefaultMinMax]:
     """
     defaults = {}
     # Read csv from palm_csd.data.
-    with files(CSV_VALUE_DEFAULTS).open() as default_min_max_csv:
+    with open(CSV_VALUE_DEFAULTS) as default_min_max_csv:
         reader = csv.DictReader(default_min_max_csv)
         for row in reader:
             # Process each row. Each row is a dict of strings.

@@ -17,7 +17,6 @@
 """Module for resolved vegetation."""
 
 import logging
-from importlib.resources import files
 from math import pi
 from typing import Callable, Final, List, Optional, Tuple, Union, cast
 
@@ -151,7 +150,7 @@ class DomainTree(Tree):
 
 def _populate_defaults() -> List[ReferenceTree]:
     """Read default tree species data from file."""
-    with files(CSV_TREE_DEFAULTS).open() as tree_csv:
+    with open(CSV_TREE_DEFAULTS) as tree_csv:
         tree_data = np.genfromtxt(
             tree_csv,
             delimiter=",",

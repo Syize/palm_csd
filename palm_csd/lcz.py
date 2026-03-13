@@ -16,7 +16,6 @@
 
 """Tools to handle Local Climate Zones (LCZs)."""
 
-from importlib.resources import files
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
@@ -258,7 +257,7 @@ class LCZTypes:
         #   min and max values based on Steward and Oke (2012)
         #   RGB values based on WUDAPT convention
         #   default values based on W2W convention
-        with files(CSV_LCZ_DEFINITIONS).open() as lcz_csv:
+        with open(CSV_LCZ_DEFINITIONS) as lcz_csv:
             lcz_definitions = np.genfromtxt(
                 lcz_csv,
                 delimiter=",",
@@ -269,7 +268,7 @@ class LCZTypes:
                 encoding="utf-8",
             )
         # Mapping of LCZ to vegetation and water properties.
-        with files(CSV_LCZ_MAPPINGS).open() as lcz_csv:
+        with open(CSV_LCZ_MAPPINGS) as lcz_csv:
             lcz_mappings = np.genfromtxt(
                 lcz_csv,
                 delimiter=",",
