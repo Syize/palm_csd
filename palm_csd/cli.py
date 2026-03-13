@@ -64,7 +64,6 @@ def run():
         verbose[v] = args.verbose is not None and ("all" in args.verbose or v in args.verbose)
 
     create_driver(args.ymlconfig, verbose=verbose, show_plot=args.show, pdf=args.pdf, png=args.png)
-    create_driver(args.ymlconfig, verbose=verbose, show_plot=args.show, pdf=args.pdf, png=args.png)
 
 
 __all__ = ["run"]

@@ -1465,14 +1465,6 @@ class CSDConfig:
             ValueError: The configuration section name is unknown.
             ValidationError: Errors in the configuration section.
         """
-        # Reset counters for all CSDConfigElement subclasses to ensure fresh validation
-        CSDConfigAttributes._reset_counter()
-        CSDConfigSettings._reset_counter()
-        CSDConfigOutput._reset_counter()
-        CSDConfigInput._reset_counter()
-        CSDConfigDomain._reset_counter()
-        CSDConfigLCZ._reset_counter()
-
         self.domain_dict = {}
         self.input_dict = {}
         counter_input = 0
