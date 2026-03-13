@@ -4,6 +4,14 @@
 
 **Current version: v25.10**
 
+## Installation
+
+You can install `palm_csd` from this repo directly:
+
+```bash
+uv add "palm_csd @ git+https://github.com/Syize/palm_csd"
+```
+
 ---
 
 Processing tool for creating PALM Input Data Standard (PIDS) conform static driver files from rastered netCDF input.
