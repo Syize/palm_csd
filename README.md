@@ -1,4 +1,10 @@
-# PALM Create Static Driver (palm_csd)
+# PALM Create Static Driver (palm_csd) Unofficial Repo
+
+**This is an unofficial repo for self-use only.**
+
+**Current version: v25.10**
+
+---
 
 Processing tool for creating PALM Input Data Standard (PIDS) conform static driver files from rastered netCDF input.
 

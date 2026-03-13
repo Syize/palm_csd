@@ -1,0 +1,7 @@
+{
+    "ruff.format.backend": "uv",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+    }
+}

@@ -14,7 +14,8 @@
 # Copyright 1997-2025  Leibniz Universitaet Hannover
 # Copyright 2022-2025  Technische Universitaet Berlin
 
-"""Package of palm_csd, a tool to create static-driver files for the PALM model.
+"""
+Package of palm_csd, a tool to create static-driver files for the PALM model.
 
 palm_csd is a tool to create static-driver files for the PALM model. It reads input data and
 calculates the necessary fields for PALM from it.
