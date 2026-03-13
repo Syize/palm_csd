@@ -27,6 +27,8 @@ from pydantic import BaseModel, Field, model_validator
 from palm_csd.csd_config import CSDConfigLCZ, value_defaults
 from palm_csd.tools import DefaultMinMax
 
+from .data import CSV_LCZ_DEFINITIONS, CSV_LCZ_MAPPINGS
+
 
 class LCZ(BaseModel, arbitrary_types_allowed=True, frozen=True):
     """Class to store the properties of a local climate zone (LCZ).
@@ -141,9 +143,7 @@ class LCZ(BaseModel, arbitrary_types_allowed=True, frozen=True):
                 else:
                     if self.impervious_plan_area_fraction.default is None:
                         raise ValueError("imperious_plan_area_fraction is None.")
-                    self.pervious_plan_area_fraction.default = (
-                        residual - self.impervious_plan_area_fraction.default
-                    )
+                    self.pervious_plan_area_fraction.default = residual - self.impervious_plan_area_fraction.default
         else:
             if impervious_plan_area_fraction is not None:
                 self.impervious_plan_area_fraction.default = impervious_plan_area_fraction
@@ -155,15 +155,10 @@ class LCZ(BaseModel, arbitrary_types_allowed=True, frozen=True):
                 else:
                     if self.building_plan_area_fraction.default is None:
                         raise ValueError("building_plan_area_fraction is None.")
-                    self.pervious_plan_area_fraction.default = (
-                        residual - self.building_plan_area_fraction.default
-                    )
+                    self.pervious_plan_area_fraction.default = residual - self.building_plan_area_fraction.default
             else:
                 if pervious_plan_area_fraction is not None:
-                    raise ValueError(
-                        "Only modifying pervious_plan_area_fraction."
-                        + "Do not know how to adjust the other."
-                    )
+                    raise ValueError("Only modifying pervious_plan_area_fraction." + "Do not know how to adjust the other.")
                 # else case: all three arguments are None so do nothing
 
 
@@ -263,7 +258,7 @@ class LCZTypes:
         #   min and max values based on Steward and Oke (2012)
         #   RGB values based on WUDAPT convention
         #   default values based on W2W convention
-        with files("palm_csd.data").joinpath("lcz_definitions.csv").open() as lcz_csv:
+        with files(CSV_LCZ_DEFINITIONS).open() as lcz_csv:
             lcz_definitions = np.genfromtxt(
                 lcz_csv,
                 delimiter=",",
@@ -274,7 +269,7 @@ class LCZTypes:
                 encoding="utf-8",
             )
         # Mapping of LCZ to vegetation and water properties.
-        with files("palm_csd.data").joinpath("lcz_mappings.csv").open() as lcz_csv:
+        with files(CSV_LCZ_MAPPINGS).open() as lcz_csv:
             lcz_mappings = np.genfromtxt(
                 lcz_csv,
                 delimiter=",",
@@ -302,9 +297,7 @@ class LCZTypes:
                 height_default = self._mean_height([height_minimum, height_maximum])
             lcz = LCZ(
                 index=lcz_definition[1],
-                aspect_ratio=DefaultMinMax(
-                    minimum=lcz_definition[2], default=lcz_definition[3], maximum=lcz_definition[4]
-                ),
+                aspect_ratio=DefaultMinMax(minimum=lcz_definition[2], default=lcz_definition[3], maximum=lcz_definition[4]),
                 building_plan_area_fraction=DefaultMinMax(
                     minimum=lcz_definition[5], default=lcz_definition[6], maximum=lcz_definition[7]
                 ),
@@ -324,9 +317,7 @@ class LCZTypes:
                 r=lcz_definition[17],
                 g=lcz_definition[18],
                 b=lcz_definition[19],
-                vegetation_type=ma.masked_equal(
-                    lcz_mapping["vegetation_type"], filling_values_temp
-                ),
+                vegetation_type=ma.masked_equal(lcz_mapping["vegetation_type"], filling_values_temp),
                 water_type=ma.masked_equal(lcz_mapping["water_type"], filling_values_temp),
                 lai=ma.masked_equal(lcz_mapping[lai_label], filling_values_temp),
             )
@@ -368,9 +359,7 @@ class LCZTypes:
                 lcz = getattr(self, lcz_name)
                 lcz.set_fractions(**fraction_properties)
                 # apply the other properties directly
-                other_properties = {
-                    k: v for (k, v) in lcz_properties.items() if "fraction" not in k
-                }
+                other_properties = {k: v for (k, v) in lcz_properties.items() if "fraction" not in k}
                 for prop, value in other_properties.items():
                     prop_object = getattr(lcz, prop)
                     if isinstance(prop_object, DefaultMinMax):
@@ -396,9 +385,7 @@ class LCZTypes:
         lcz_index = ma.masked_all(r.shape, dtype="uint8")
         for lcz in self.index.values():
             if isinstance(lcz, LCZ):
-                lcz_index = ma.where(
-                    (r == lcz.r) & (g == lcz.g) & (b == lcz.b), lcz.index, lcz_index
-                )
+                lcz_index = ma.where((r == lcz.r) & (g == lcz.g) & (b == lcz.b), lcz.index, lcz_index)
         return lcz_index
 
     def lcz_index_to_rgb(self, lcz_index: ma.MaskedArray) -> ma.MaskedArray:
@@ -413,9 +400,7 @@ class LCZTypes:
         rgb = ma.masked_all((3,) + lcz_index.shape, dtype="uint8")
         u, inv = np.unique(lcz_index, return_inverse=True)
         for i, band in enumerate(["r", "g", "b"]):
-            rgb[i, ...] = np.array([getattr(self.index[x], band) for x in u])[inv].reshape(
-                lcz_index.shape
-            )
+            rgb[i, ...] = np.array([getattr(self.index[x], band) for x in u])[inv].reshape(lcz_index.shape)
         return rgb
 
     def value_from_lcz_map(
@@ -515,10 +500,7 @@ class LCZTypes:
         Returns:
             Urban fraction.
         """
-        if (
-            lcz.building_plan_area_fraction.default is None
-            or lcz.impervious_plan_area_fraction.default is None
-        ):
+        if lcz.building_plan_area_fraction.default is None or lcz.impervious_plan_area_fraction.default is None:
             raise ValueError("Building or impervious fraction is None.")
         urban_fraction: ma.MaskedArray = ma.MaskedArray(
             lcz.building_plan_area_fraction.default + lcz.impervious_plan_area_fraction.default
@@ -552,9 +534,7 @@ class LCZTypes:
             urban_class_fraction[0] = 1.0
         return urban_class_fraction
 
-    def street_direction_fraction_from_lcz_map(
-        self, lcz_map: ma.MaskedArray, udir: List[float]
-    ) -> ma.MaskedArray:
+    def street_direction_fraction_from_lcz_map(self, lcz_map: ma.MaskedArray, udir: List[float]) -> ma.MaskedArray:
         """Calculate the street direction fraction from an LCZ array.
 
         We assume that there is only one urban class.
@@ -586,9 +566,7 @@ class LCZTypes:
             street_direction_fraction[0, :] = ma.repeat(1.0 / len(udir), len(udir))
         return street_direction_fraction
 
-    def street_width_from_lcz_map(
-        self, lcz_map: ma.MaskedArray, udir: List[float]
-    ) -> ma.MaskedArray:
+    def street_width_from_lcz_map(self, lcz_map: ma.MaskedArray, udir: List[float]) -> ma.MaskedArray:
         """Calculate the street width from an LCZ array.
 
         We assume that there is only one urban class.
@@ -626,9 +604,7 @@ class LCZTypes:
             )
         return street_width
 
-    def building_width_from_lcz_map(
-        self, lcz_map: ma.MaskedArray, udir: List[float]
-    ) -> ma.MaskedArray:
+    def building_width_from_lcz_map(self, lcz_map: ma.MaskedArray, udir: List[float]) -> ma.MaskedArray:
         """Calculate the building width from an LCZ array.
 
         We assume that there is only one urban class.
@@ -655,10 +631,7 @@ class LCZTypes:
         Returns:
             Building width array for each urban class and street direction.
         """
-        if (
-            lcz.building_plan_area_fraction.default is None
-            or lcz.impervious_plan_area_fraction.default is None
-        ):
+        if lcz.building_plan_area_fraction.default is None or lcz.impervious_plan_area_fraction.default is None:
             raise ValueError("Building or impervious fraction is None.")
         # shape: one urban class, udir
         building_width = ma.masked_all((1, len(udir)))
@@ -670,9 +643,7 @@ class LCZTypes:
             building_width *= self.street_width_from_lcz(lcz, udir)
         return building_width
 
-    def building_height_from_lcz_map(
-        self, lcz_map: ma.MaskedArray, z_uhl: List[float], udir: List[float]
-    ) -> ma.MaskedArray:
+    def building_height_from_lcz_map(self, lcz_map: ma.MaskedArray, z_uhl: List[float], udir: List[float]) -> ma.MaskedArray:
         """Calculate the building height fraction from an LCZ array.
 
         We assume that there is only one urban class.
@@ -686,13 +657,9 @@ class LCZTypes:
             Building height fraction array for each urban class, street direction, and urban
             half-level, otherwise the same shape as the LCZ index array.
         """
-        return self.value_from_lcz_map(
-            lcz_map, self.building_height_from_lcz, z_uhl=z_uhl, udir=udir
-        )
+        return self.value_from_lcz_map(lcz_map, self.building_height_from_lcz, z_uhl=z_uhl, udir=udir)
 
-    def building_height_from_lcz(
-        self, lcz: LCZ, z_uhl: List[float], udir: List[float]
-    ) -> ma.MaskedArray:
+    def building_height_from_lcz(self, lcz: LCZ, z_uhl: List[float], udir: List[float]) -> ma.MaskedArray:
         """Calculate the building height fractions for a Local Climate Zone.
 
         A truncated normal distribution of the building height is assumend:
@@ -715,13 +682,9 @@ class LCZTypes:
         """
         building_height = ma.masked_all((1, len(udir), len(z_uhl)))
         if lcz in self.urban_like:
-            if (
-                lcz.height_roughness_elements.maximum is not None
-                and lcz.height_roughness_elements.minimum is not None
-            ):
+            if lcz.height_roughness_elements.maximum is not None and lcz.height_roughness_elements.minimum is not None:
                 sd = 0.25 * (
-                    self._mean_f1(lcz.height_roughness_elements.maximum)
-                    - self._mean_f1(lcz.height_roughness_elements.minimum)
+                    self._mean_f1(lcz.height_roughness_elements.maximum) - self._mean_f1(lcz.height_roughness_elements.minimum)
                 )
             else:
                 raise ValueError("No height range specified for LCZ.")

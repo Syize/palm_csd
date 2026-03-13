@@ -30,12 +30,10 @@ import scipy.integrate as integrate
 from pydantic import BaseModel, Field, field_validator
 
 from palm_csd import StatusLogger
-from palm_csd.csd_config import (
-    _check_string,
-    _default_not_none,
-    value_defaults,
-)
+from palm_csd.csd_config import _check_string, _default_not_none, value_defaults
 from palm_csd.tools import is_missing
+
+from .data import CSV_TREE_DEFAULTS
 
 # TODO Python 3.11 supports Self in typing
 # from typing import Self
@@ -153,7 +151,7 @@ class DomainTree(Tree):
 
 def _populate_defaults() -> List[ReferenceTree]:
     """Read default tree species data from file."""
-    with files("palm_csd.data").joinpath("tree_defaults.csv").open() as tree_csv:
+    with files(CSV_TREE_DEFAULTS).open() as tree_csv:
         tree_data = np.genfromtxt(
             tree_csv,
             delimiter=",",
@@ -311,9 +309,7 @@ class CanopyGenerator(BaseModel):
         else:
             raise ValueError(f"Unknown patch LAD method {self.method}.")
 
-    def _integral_LM2004(
-        self, z_rel: Union[ma.MaskedArray, float], n: float, **kwargs: float
-    ) -> Union[ma.MaskedArray, float]:
+    def _integral_LM2004(self, z_rel: Union[ma.MaskedArray, float], n: float, **kwargs: float) -> Union[ma.MaskedArray, float]:
         """Indefinite integral per patch height h of the LAD profile in Lalic and Mihailovic (2004).
 
         According to Wolfram Alpha, the indefinite integral I of (1) Lalic and Mihailovic (2004) is:
@@ -350,9 +346,7 @@ class CanopyGenerator(BaseModel):
             # Γ(s+1, x) = sΓ(s, x) + x^s e^-x  .
             # Checked with mpmath.gammainc.
             # Multiply regularized upper incomplete gammaincc with gamma to get non-regularized.
-            gamma_inc = (
-                scipy.special.gammaincc(n, x) * scipy.special.gamma(n) - x ** (n - 1.0) * np.exp(-x)
-            ) / (n - 1.0)
+            gamma_inc = (scipy.special.gammaincc(n, x) * scipy.special.gamma(n) - x ** (n - 1.0) * np.exp(-x)) / (n - 1.0)
         else:
             # Multiply regularized upper incomplete gammaincc with gamma to get non-regularized.
             gamma_inc = scipy.special.gammaincc(n - 1.0, x) * scipy.special.gamma(n - 1.0)
@@ -403,12 +397,8 @@ class CanopyGenerator(BaseModel):
         below_z_max_rel = z_rel < z_max_rel
         above_z_max_rel = ~below_z_max_rel & ~z_rel.mask
         below_z_max_rel = below_z_max_rel & ~z_rel.mask  # type: ignore
-        pdf_int[below_z_max_rel] = self._integral_LM2004(
-            z_rel[below_z_max_rel], self.N_BELOW_Z_MAX_LM2004
-        )
-        pdf_int[above_z_max_rel] = self._integral_LM2004(
-            z_rel[above_z_max_rel], self.N_ABOVE_Z_MAX_LM2004
-        )
+        pdf_int[below_z_max_rel] = self._integral_LM2004(z_rel[below_z_max_rel], self.N_BELOW_Z_MAX_LM2004)
+        pdf_int[above_z_max_rel] = self._integral_LM2004(z_rel[above_z_max_rel], self.N_ABOVE_Z_MAX_LM2004)
 
         # Grid cells that include z_max_rel need to be split into two parts.
         # Find grid cells that include z_max_rel.
@@ -531,11 +521,7 @@ class CanopyGenerator(BaseModel):
 
         # Insert z_max_rel into (1) of Markkanen et al. (2003).
         z_max_rel = self._z_max_rel_Metal2003(alpha=alpha, beta=beta)
-        return (
-            z_max_rel ** (alpha - 1.0)
-            * (1.0 - z_max_rel) ** (beta - 1.0)
-            / scipy.special.beta(alpha, beta)
-        )
+        return z_max_rel ** (alpha - 1.0) * (1.0 - z_max_rel) ** (beta - 1.0) / scipy.special.beta(alpha, beta)
 
     def _lad_max_norm_LM2004(self, **kwargs: float) -> float:
         """Calculate maximum normalized LAD following Lalic and Mihailovic (2004).
@@ -677,9 +663,7 @@ class CanopyGenerator(BaseModel):
         # Very small trees are ignored.
         if height_checked <= (self.height_rel_resolved_vegetation_lower_threshold * self.dz):
             self.shallow_tree_count += 1
-            logger.debug_indent(
-                f"Removed low tree with height = {height_checked:0.1f} at ({i}, {j})."
-            )
+            logger.debug_indent(f"Removed low tree with height = {height_checked:0.1f} at ({i}, {j}).")
             return None
 
         # Check tree_lai.
@@ -750,12 +734,9 @@ class CanopyGenerator(BaseModel):
                 )
         if self.low_lai_count > 0:
             logger.warning(
-                f"Found {self.low_lai_count} trees with LAI lower then the "
-                + "tree-type specific default winter LAI."
+                f"Found {self.low_lai_count} trees with LAI lower then the " + "tree-type specific default winter LAI."
             )
-            logger.info_indent(
-                "Consider adjusting lai_tree_lower_threshold and remove_low_lai_tree."
-            )
+            logger.info_indent("Consider adjusting lai_tree_lower_threshold and remove_low_lai_tree.")
 
     def add_tree_to_3d_fields(
         self,
@@ -792,17 +773,17 @@ class CanopyGenerator(BaseModel):
 
         # Calculate the maximum LAD after Lalic and Mihailovic (2004).
         lad_max_part_1 = integrate.quad(
-            lambda z: ((tree.height - z_lad_max) / (tree.height - z)) ** self.N_BELOW_Z_MAX_LM2004
-            * np.exp(
-                self.N_BELOW_Z_MAX_LM2004 * (1.0 - (tree.height - z_lad_max) / (tree.height - z))
+            lambda z: (
+                ((tree.height - z_lad_max) / (tree.height - z)) ** self.N_BELOW_Z_MAX_LM2004
+                * np.exp(self.N_BELOW_Z_MAX_LM2004 * (1.0 - (tree.height - z_lad_max) / (tree.height - z)))
             ),
             0.0,
             z_lad_max,
         )
         lad_max_part_2 = integrate.quad(
-            lambda z: ((tree.height - z_lad_max) / (tree.height - z)) ** self.N_ABOVE_Z_MAX_LM2004
-            * np.exp(
-                self.N_ABOVE_Z_MAX_LM2004 * (1.0 - (tree.height - z_lad_max) / (tree.height - z))
+            lambda z: (
+                ((tree.height - z_lad_max) / (tree.height - z)) ** self.N_ABOVE_Z_MAX_LM2004
+                * np.exp(self.N_ABOVE_Z_MAX_LM2004 * (1.0 - (tree.height - z_lad_max) / (tree.height - z)))
             ),
             z_lad_max,
             tree.height,
@@ -867,9 +848,7 @@ class CanopyGenerator(BaseModel):
                             + (z[k] - crown_center) ** 2 / (crown_height * 0.5) ** (2)
                         )
                         if r_test <= 1.0:
-                            lad_local[k, j, i] = lad_max * np.exp(
-                                -self.tree_sphere_extinction * (1.0 - r_test)
-                            )
+                            lad_local[k, j, i] = lad_max * np.exp(-self.tree_sphere_extinction * (1.0 - r_test))
                         else:
                             lad_local[k, j, i] = ma.masked
 
@@ -885,12 +864,8 @@ class CanopyGenerator(BaseModel):
                             + (y[j] - location_y) ** 2 / (tree.crown_diameter * 0.5) ** 2
                         )
                         if r_test <= 1.0:
-                            r_test3 = np.sqrt(
-                                (z[k] - crown_center) ** 2 / (crown_height * 0.5) ** 2
-                            )
-                            lad_local[k, j, i] = lad_max * np.exp(
-                                -self.tree_sphere_extinction * (1.0 - max(r_test, r_test3))
-                            )
+                            r_test3 = np.sqrt((z[k] - crown_center) ** 2 / (crown_height * 0.5) ** 2)
+                            lad_local[k, j, i] = lad_max * np.exp(-self.tree_sphere_extinction * (1.0 - max(r_test, r_test3)))
                         else:
                             lad_local[k, j, i] = ma.masked
 
@@ -905,20 +880,16 @@ class CanopyGenerator(BaseModel):
                         r_test = (
                             (x[i] - location_x) ** 2
                             + (y[j] - location_y) ** 2
-                            - ((tree.crown_diameter * 0.5) ** 2 / crown_height**2)
-                            * (z[k_rel] - crown_height) ** 2
+                            - ((tree.crown_diameter * 0.5) ** 2 / crown_height**2) * (z[k_rel] - crown_height) ** 2
                         )
                         if r_test <= 0.0:
                             r_test2 = np.sqrt(
                                 (x[i] - location_x) ** 2 / (tree.crown_diameter * 0.5) ** 2
                                 + (y[j] - location_y) ** 2 / (tree.crown_diameter * 0.5) ** 2
                             )
-                            r_test3 = np.sqrt(
-                                (z[k] - crown_center) ** 2 / (crown_height * 0.5) ** 2
-                            )
+                            r_test3 = np.sqrt((z[k] - crown_center) ** 2 / (crown_height * 0.5) ** 2)
                             lad_local[k, j, i] = lad_max * np.exp(
-                                -self.tree_cone_extinction
-                                * (1.0 - max((r_test + 1.0), r_test2, r_test3))
+                                -self.tree_cone_extinction * (1.0 - max((r_test + 1.0), r_test2, r_test3))
                             )
                         else:
                             lad_local[k, j, i] = ma.masked
@@ -935,20 +906,15 @@ class CanopyGenerator(BaseModel):
                         r_test = (
                             (x[i] - location_x) ** 2
                             + (y[j] - location_y) ** 2
-                            - ((tree.crown_diameter * 0.5) ** 2 / crown_height**2)
-                            * (z[k_rel] - crown_height) ** 2
+                            - ((tree.crown_diameter * 0.5) ** 2 / crown_height**2) * (z[k_rel] - crown_height) ** 2
                         )
                         if r_test <= 0.0:
                             r_test2 = np.sqrt(
                                 (x[i] - location_x) ** 2 / (tree.crown_diameter * 0.5) ** 2
                                 + (y[j] - location_y) ** 2 / (tree.crown_diameter * 0.5) ** 2
                             )
-                            r_test3 = np.sqrt(
-                                (z[k] - crown_center) ** 2 / (crown_height * 0.5) ** 2
-                            )
-                            lad_local[k, j, i] = lad_max * np.exp(
-                                -self.tree_cone_extinction * (-r_test)
-                            )
+                            r_test3 = np.sqrt((z[k] - crown_center) ** 2 / (crown_height * 0.5) ** 2)
+                            lad_local[k, j, i] = lad_max * np.exp(-self.tree_cone_extinction * (-r_test))
                         else:
                             lad_local[k, j, i] = ma.masked
 
@@ -960,13 +926,11 @@ class CanopyGenerator(BaseModel):
                 for j in range(0, nx):
                     for k in range(k_min, k_max):
                         k_rel = k - k_min
-                        r_test = (
-                            (x[i] - location_x) ** 2 + (y[j] - location_y) ** (2)
-                        ) * crown_height / (tree.crown_diameter * 0.5) ** 2 - z[k_rel]
+                        r_test = ((x[i] - location_x) ** 2 + (y[j] - location_y) ** (2)) * crown_height / (
+                            tree.crown_diameter * 0.5
+                        ) ** 2 - z[k_rel]
                         if r_test <= 0.0:
-                            lad_local[k, j, i] = lad_max * np.exp(
-                                -self.tree_cone_extinction * (-r_test)
-                            )
+                            lad_local[k, j, i] = lad_max * np.exp(-self.tree_cone_extinction * (-r_test))
                         else:
                             lad_local[k, j, i] = ma.masked
 
@@ -978,13 +942,11 @@ class CanopyGenerator(BaseModel):
                 for j in range(0, nx):
                     for k in range(k_min, k_max):
                         k_rel = k_max - k
-                        r_test = (
-                            (x[i] - location_x) ** 2 + (y[j] - location_y) ** (2)
-                        ) * crown_height / (tree.crown_diameter * 0.5) ** 2 - z[k_rel]
+                        r_test = ((x[i] - location_x) ** 2 + (y[j] - location_y) ** (2)) * crown_height / (
+                            tree.crown_diameter * 0.5
+                        ) ** 2 - z[k_rel]
                         if r_test <= 0.0:
-                            lad_local[k, j, i] = lad_max * np.exp(
-                                -self.tree_cone_extinction * (-r_test)
-                            )
+                            lad_local[k, j, i] = lad_max * np.exp(-self.tree_cone_extinction * (-r_test))
                         else:
                             lad_local[k, j, i] = ma.masked
 

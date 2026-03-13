@@ -63,6 +63,8 @@ from palm_csd.constants import (
 )
 from palm_csd.tools import DefaultMinMax
 
+from .data import CSV_VALUE_DEFAULTS
+
 # module logger, StatusLogger already set in __init__.py so cast only for type checking
 logger = cast(StatusLogger, logging.getLogger(__name__))
 
@@ -77,7 +79,7 @@ def _populate_defaults() -> Dict[str, DefaultMinMax]:
     """
     defaults = {}
     # Read csv from palm_csd.data.
-    with files("palm_csd.data").joinpath("value_defaults.csv").open() as default_min_max_csv:
+    with files(CSV_VALUE_DEFAULTS).open() as default_min_max_csv:
         reader = csv.DictReader(default_min_max_csv)
         for row in reader:
             # Process each row. Each row is a dict of strings.
@@ -187,9 +189,7 @@ class CSDConfigAttributes(CSDConfigElement):
 
     @field_validator("palm_version")
     @classmethod
-    def _message_removed_palm_version(
-        cls, value: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
+    def _message_removed_palm_version(cls, value: Optional[float], info: ValidationInfo) -> Optional[float]:
         return _validate_removed_conf(
             value,
             info,
@@ -475,12 +475,8 @@ class CSDConfigSettings(CSDConfigElement):
 
     @field_validator("bridge_width")
     @classmethod
-    def _message_old_bridge_width(
-        cls, value: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_removed_conf(
-            value, info, "It is now called bridge_depth and is set in the domain section."
-        )
+    def _message_old_bridge_width(cls, value: Optional[float], info: ValidationInfo) -> Optional[float]:
+        return _validate_removed_conf(value, info, "It is now called bridge_depth and is set in the domain section.")
 
     @field_validator("debug")
     @classmethod
@@ -491,21 +487,13 @@ class CSDConfigSettings(CSDConfigElement):
 
     @field_validator("lai_roof_extensive")
     @classmethod
-    def _message_old_lai_roof_extensive(
-        cls, value: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_removed_conf(
-            value, info, "Define LAI with building_lai for surface level roof instead."
-        )
+    def _message_old_lai_roof_extensive(cls, value: Optional[float], info: ValidationInfo) -> Optional[float]:
+        return _validate_removed_conf(value, info, "Define LAI with building_lai for surface level roof instead.")
 
     @field_validator("lai_roof_intensive")
     @classmethod
-    def _message_old_lai_roof_intensive(
-        cls, value: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_removed_conf(
-            value, info, "Define LAI with building_lai for surface level roof instead."
-        )
+    def _message_old_lai_roof_intensive(cls, value: Optional[float], info: ValidationInfo) -> Optional[float]:
+        return _validate_removed_conf(value, info, "Define LAI with building_lai for surface level roof instead.")
 
     @field_validator("season")
     @classmethod
@@ -589,9 +577,7 @@ FilePathPrependedExpanded = Annotated[
 ]
 """Existing file Path with prepended path attribute and expanded ~."""
 
-PathPrependedExpanded = Annotated[
-    Path, BeforeValidator(_prepend_path_to_file), AfterValidator(_expand_user_path)
-]
+PathPrependedExpanded = Annotated[Path, BeforeValidator(_prepend_path_to_file), AfterValidator(_expand_user_path)]
 """Path with prepended path attribute and expanded ~. Can exist or not."""
 
 
@@ -715,9 +701,7 @@ class CSDConfigInput(CSDConfigElement):
     file_zt: Optional[FilePathPrependedExpanded] = None
     """REMOVED: Input file for terrain height."""
 
-    columns: Dict[
-        StrLowercaseStrip, Union[StrLowercaseStrip, Dict[IntStrLowercaseStrip, StrLowercaseStrip]]
-    ] = {}
+    columns: Dict[StrLowercaseStrip, Union[StrLowercaseStrip, Dict[IntStrLowercaseStrip, StrLowercaseStrip]]] = {}
     """Assignment of input column names to column types or subtypes."""
 
     _used_file: Set[Path] = set()
@@ -731,8 +715,7 @@ class CSDConfigInput(CSDConfigElement):
         return _validate_removed_conf(
             value,
             info,
-            "Use vegetation_height in files to set (among other things) "
-            + "the vegetation patch height.",
+            "Use vegetation_height in files to set (among other things) " + "the vegetation patch height.",
         )
 
     @field_validator(
@@ -776,12 +759,8 @@ class CSDConfigInput(CSDConfigElement):
 
     @field_validator("pixel_size")
     @classmethod
-    def _message_removed_pixel_size(
-        cls, value: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_removed_conf(
-            value, info, "Use input in each domain section to define its input section."
-        )
+    def _message_removed_pixel_size(cls, value: Optional[float], info: ValidationInfo) -> Optional[float]:
+        return _validate_removed_conf(value, info, "Use input in each domain section to define its input section.")
 
     @field_validator("files", mode="before")
     @classmethod
@@ -811,9 +790,7 @@ class CSDConfigInput(CSDConfigElement):
             StrLowercaseStrip,
             Union[StrLowercaseStrip, Dict[IntStrLowercaseStrip, StrLowercaseStrip]],
         ],
-    ) -> Dict[
-        StrLowercaseStrip, Union[StrLowercaseStrip, Dict[IntStrLowercaseStrip, StrLowercaseStrip]]
-    ]:
+    ) -> Dict[StrLowercaseStrip, Union[StrLowercaseStrip, Dict[IntStrLowercaseStrip, StrLowercaseStrip]]]:
         valid_variables = set(INPUT_DATA_EXPANDED["name"]).union({col for col in InputDataVector})
         invalid = []
         for key in value.values():
@@ -822,16 +799,12 @@ class CSDConfigInput(CSDConfigElement):
                 if len(matches) == 0:
                     invalid.append(key)
         if len(invalid) > 0:
-            raise ValueError(
-                f"Invalid input column{'s' if len(invalid) > 1 else ''} found: {invalid}"
-            )
+            raise ValueError(f"Invalid input column{'s' if len(invalid) > 1 else ''} found: {invalid}")
         return value
 
     @field_validator("files", mode="after")
     @classmethod
-    def _files_keys_valid(
-        cls, value: Dict[str, List[FilePathPrependedExpanded]]
-    ) -> Dict[str, List[FilePathPrependedExpanded]]:
+    def _files_keys_valid(cls, value: Dict[str, List[FilePathPrependedExpanded]]) -> Dict[str, List[FilePathPrependedExpanded]]:
         valid_variables = set(INPUT_DATA_EXPANDED["name"]).union({col for col in InputDataVector})
         invalid = []
         for key in value.keys():
@@ -839,15 +812,11 @@ class CSDConfigInput(CSDConfigElement):
             if len(matches) == 0:
                 invalid.append(key)
         if len(invalid) > 0:
-            raise ValueError(
-                f"Invalid input file{'s' if len(invalid) > 1 else ''} found: {invalid}"
-            )
+            raise ValueError(f"Invalid input file{'s' if len(invalid) > 1 else ''} found: {invalid}")
         # Check if value lists have only one element for all entries except those in InputDataVector
         for key, file_list in value.items():
             if key not in {col.value for col in InputDataVector} and len(file_list) > 1:
-                raise ValueError(
-                    f"Input file '{key}' should be a single file, but got {len(file_list)} given."
-                )
+                raise ValueError(f"Input file '{key}' should be a single file, but got {len(file_list)} given.")
         return value
 
     @model_validator(mode="after")
@@ -980,10 +949,7 @@ def _expand_parslike(
             elif len(input_value) == 1:
                 output_value = input_value * nlayer
             else:
-                raise ValueError(
-                    f"Length of value list {len(input_value)} does not match "
-                    + f"number of layer {nlayer}."
-                )
+                raise ValueError(f"Length of value list {len(input_value)} does not match " + f"number of layer {nlayer}.")
         else:
             if nlayer == 1:
                 output_value = input_value
@@ -1007,9 +973,7 @@ def _expand_parslike(
             elif len(value) == 1:
                 output_value = value * nlayer
             else:
-                raise ValueError(
-                    f"Length of value list {len(value)} does not match number of layer {nlayer}."
-                )
+                raise ValueError(f"Length of value list {len(value)} does not match number of layer {nlayer}.")
         else:
             raise ValueError(f"Unknown type {type(value)} for parslike value.")
 
@@ -1058,9 +1022,7 @@ def _validate_parslike(
         full_key = f"{info.field_name}_{enum(key).name}"
         keys_starting_with_key = [k for k in value_defaults.keys() if full_key.startswith(k)]
         if not keys_starting_with_key:
-            raise ValueError(
-                f"Key {full_key} cannot be expanded to any key in {list(value_defaults.keys())}."
-            )
+            raise ValueError(f"Key {full_key} cannot be expanded to any key in {list(value_defaults.keys())}.")
         if len(keys_starting_with_key) > 1:
             # take the longest match as a list
             keys_starting_with_key = sorted(keys_starting_with_key, key=len, reverse=True)[0:1]
@@ -1110,9 +1072,7 @@ DictBuildingSurfaceTypeFloat = Annotated[
 
 DictBuildingSurfaceTypeFloatLayer = Annotated[
     Dict[int, List[float]],
-    BeforeValidator(
-        lambda x: _expand_parslike(x, IndexBuildingSurfaceType, nlayer=NBUILDING_SURFACE_LAYER)
-    ),
+    BeforeValidator(lambda x: _expand_parslike(x, IndexBuildingSurfaceType, nlayer=NBUILDING_SURFACE_LAYER)),
     AfterValidator(lambda x, info: _validate_parslike(x, IndexBuildingSurfaceType, info)),
 ]
 """Dictionary with building surface type parameters as list of float values, one for each layer."""
@@ -1315,14 +1275,9 @@ class CSDConfigDomain(CSDConfigElement):
             enum_key_strings = [element.name for element in IndexPavementType]
             matching_keys = [k for k in enum_key_strings if k == values]
             if not matching_keys:
-                raise ValueError(
-                    f"Value {values} cannot be expanded to any key in {enum_key_strings}."
-                )
+                raise ValueError(f"Value {values} cannot be expanded to any key in {enum_key_strings}.")
             if len(matching_keys) > 1:
-                raise ValueError(
-                    f"Value {values} is ambiguous and matches multiple keys in "
-                    + f"{enum_key_strings}."
-                )
+                raise ValueError(f"Value {values} is ambiguous and matches multiple keys in " + f"{enum_key_strings}.")
             return IndexPavementType[matching_keys[0]].value
         return values
 
@@ -1346,9 +1301,7 @@ class CSDConfigDomain(CSDConfigElement):
         for i in range(1, len(values)):
             _check_within_range(values[i], value_defaults["z_uhl"])
             if (values[i] - values[i - 1]) <= 0.0:
-                raise ValueError(
-                    f"z_uhl not monotonously increasing from {values[i - 1]} " + f"to {values[i]}."
-                )
+                raise ValueError(f"z_uhl not monotonously increasing from {values[i - 1]} " + f"to {values[i]}.")
         return values
 
     @field_validator("udir")
@@ -1368,9 +1321,7 @@ class CSDConfigDomain(CSDConfigElement):
 
     @field_validator("allow_high_vegetation")
     @classmethod
-    def _message_old_allow_high_vegetation(
-        cls, value: Optional[bool], info: ValidationInfo
-    ) -> Optional[bool]:
+    def _message_old_allow_high_vegetation(cls, value: Optional[bool], info: ValidationInfo) -> Optional[bool]:
         return _validate_removed_conf(
             value,
             info,
@@ -1379,9 +1330,7 @@ class CSDConfigDomain(CSDConfigElement):
 
     @field_validator("generate_vegetation_on_roofs")
     @classmethod
-    def _message_old_generate_vegetation_on_roofs(
-        cls, value: Optional[bool], info: ValidationInfo
-    ) -> Optional[bool]:
+    def _message_old_generate_vegetation_on_roofs(cls, value: Optional[bool], info: ValidationInfo) -> Optional[bool]:
         return _validate_removed_conf(
             value,
             info,
@@ -1391,9 +1340,7 @@ class CSDConfigDomain(CSDConfigElement):
 
     @field_validator("buildings_3d")
     @classmethod
-    def _message_old_buildings_3d(
-        cls, value: Optional[bool], info: ValidationInfo
-    ) -> Optional[bool]:
+    def _message_old_buildings_3d(cls, value: Optional[bool], info: ValidationInfo) -> Optional[bool]:
         return _validate_removed_conf(
             value,
             info,
@@ -1402,9 +1349,7 @@ class CSDConfigDomain(CSDConfigElement):
 
     @field_validator("street_trees")
     @classmethod
-    def _message_old_street_trees(
-        cls, value: Optional[bool], info: ValidationInfo
-    ) -> Optional[bool]:
+    def _message_old_street_trees(cls, value: Optional[bool], info: ValidationInfo) -> Optional[bool]:
         return _validate_removed_conf(
             value,
             info,
@@ -1413,9 +1358,7 @@ class CSDConfigDomain(CSDConfigElement):
 
     @field_validator("vegetation_on_roofs")
     @classmethod
-    def _message_old_vegetation_on_roofs(
-        cls, value: Optional[bool], info: ValidationInfo
-    ) -> Optional[bool]:
+    def _message_old_vegetation_on_roofs(cls, value: Optional[bool], info: ValidationInfo) -> Optional[bool]:
         return _validate_removed_conf(
             value,
             info,
@@ -1431,8 +1374,7 @@ class CSDConfigDomain(CSDConfigElement):
         return _validate_removed_conf(
             values,
             info,
-            "It is now called water_temperature and "
-            + "supports named water types and single floats for all water types.",
+            "It is now called water_temperature and " + "supports named water types and single floats for all water types.",
         )
 
     @model_validator(mode="after")
@@ -1532,8 +1474,7 @@ class CSDConfig:
             if key_splitted[0] == "input" or key_splitted[0] == "domain":
                 if len(key_splitted) > 2:
                     logger.critical_raise(
-                        f"The section {section_key} in the configuration file "
-                        + "includes too many separators '_'.",
+                        f"The section {section_key} in the configuration file " + "includes too many separators '_'.",
                     )
             else:
                 if len(key_splitted) > 1:
@@ -1572,14 +1513,11 @@ class CSDConfig:
                 elif key_splitted[0] == "lcz":
                     self.lcz = CSDConfigLCZ(**section_value)
                 else:
-                    logger.critical_raise(
-                        f"Unknown section {key_splitted[0]} in the configuration file."
-                    )
+                    logger.critical_raise(f"Unknown section {key_splitted[0]} in the configuration file.")
             except ValidationError as errors:
                 n_error = len(errors.errors())
                 logger.critical(
-                    f"In configuration section {section_key}, "
-                    + f"{n_error} {'error' if n_error == 1 else 'errors'} occurred."
+                    f"In configuration section {section_key}, " + f"{n_error} {'error' if n_error == 1 else 'errors'} occurred."
                 )
                 for error in errors.errors():
                     if error["type"] == "extra_forbidden":
@@ -1684,9 +1622,7 @@ def reset_all_config_counters() -> None:
 T = TypeVar("T")
 
 
-def _validate_removed_conf(
-    value: T, validation_info: ValidationInfo, user_info: Optional[str] = None
-) -> T:
+def _validate_removed_conf(value: T, validation_info: ValidationInfo, user_info: Optional[str] = None) -> T:
     """Validate that value is None.
 
     Args:
@@ -1708,9 +1644,7 @@ def _validate_removed_conf(
     return value
 
 
-def _validate_deprecated_conf(
-    value: T, validation_info: ValidationInfo, user_info: Optional[str] = None
-) -> T:
+def _validate_deprecated_conf(value: T, validation_info: ValidationInfo, user_info: Optional[str] = None) -> T:
     """Issue warning that the configuration option is deprecated.
 
     Args:
@@ -1757,10 +1691,6 @@ def _check_within_range(value: float, range: DefaultMinMax) -> None:
         ValueError: value is smaller than minimum or larger than maximum.
     """
     if range.minimum is not None and value < range.minimum:
-        raise ValueError(
-            f"Value {value} is smaller than minimum {range.minimum}. type=greater_than_equal"
-        )
+        raise ValueError(f"Value {value} is smaller than minimum {range.minimum}. type=greater_than_equal")
     if range.maximum is not None and value > range.maximum:
-        raise ValueError(
-            f"Value {value} is larger than maximum {range.maximum}. type=less_than_equal"
-        )
+        raise ValueError(f"Value {value} is larger than maximum {range.maximum}. type=less_than_equal")
