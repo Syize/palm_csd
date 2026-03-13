@@ -24,6 +24,7 @@ import logging
 import math
 from itertools import combinations
 from os import PathLike
+from shutil import copyfile
 from typing import Dict, List, Optional, Union, cast
 
 import numpy as np
@@ -31,15 +32,7 @@ import numpy.ma as ma
 import pandas as pd
 import yaml
 
-from palm_csd import (
-    StatusLogger,
-    csd_domain,
-    geo_converter,
-    netcdf_data,
-    statistics,
-    tools,
-    vegetation,
-)
+from palm_csd import StatusLogger, csd_domain, geo_converter, netcdf_data, statistics, tools, vegetation
 from palm_csd.constants import (
     INPUT_DATA_EXPANDED,
     NBUILDING_SURFACE_LAYER,
@@ -55,15 +48,8 @@ from palm_csd.constants import (
     IndexWaterPars,
     InputData,
 )
-from palm_csd.csd_config import (
-    CSDConfig,
-    CSDConfigInput,
-    CSDConfigSettings,
-    value_defaults,
-)
-from palm_csd.csd_domain import (
-    CSDDomain,
-)
+from palm_csd.csd_config import CSDConfig, CSDConfigInput, CSDConfigSettings, value_defaults
+from palm_csd.csd_domain import CSDDomain
 from palm_csd.lcz import LCZTypes
 from palm_csd.statistics import static_driver_statistics
 from palm_csd.tools import (
@@ -76,6 +62,8 @@ from palm_csd.tools import (
     ma_isin,
 )
 from palm_csd.vegetation import DomainTree
+
+from .data import YML_CSD_DEFAULT
 
 # Module logger. In __init__.py, it is ensured that the logger is a StatusLogger. For type checking,
 # do explicit cast.
@@ -109,8 +97,11 @@ def create_driver(
         with open(input_configuration_file, "r", encoding="utf-8") as file:
             input_configuration_dict = yaml.safe_load(file)
     except FileNotFoundError:
-        logger.critical(f"Configuration file {input_configuration_file} not found.")
-        raise
+        copyfile(YML_CSD_DEFAULT, input_configuration_file)
+        logger.info(f"Configuration file {input_configuration_file} not found.")
+        logger.info("A template file has been copied to the input path.")
+        logger.info("Change it and run palm_csd again.")
+        exit(1)
 
     # Read configuration file and set parameters accordingly.
     config = CSDConfig(input_configuration_dict)
@@ -134,14 +125,10 @@ def create_driver(
             parent_name = config.domain_dict[name].domain_parent
             if parent_name is not None:
                 if parent_name not in config.domain_dict:
-                    logger.critical_raise(
-                        f"Parent domain {parent_name} of domain {name} not found."
-                    )
+                    logger.critical_raise(f"Parent domain {parent_name} of domain {name} not found.")
                 add_domain_and_parents(parent_name, domains)
                 parent = domains[parent_name]
-            domains[name] = CSDDomain(
-                name, config, parent, gis_debug_output=verbose.get("gis", False)
-            )
+            domains[name] = CSDDomain(name, config, parent, gis_debug_output=verbose.get("gis", False))
 
     # Create domains and add them to the dictionary. Parents are added first.
     domains: Dict[str, CSDDomain] = {}
@@ -194,10 +181,7 @@ def create_driver(
 
             process_lcz(domain, lcz_types)
 
-            if (
-                domain.config.water_temperature is not None
-                or domain.input_config.file_water_temperature is not None
-            ):
+            if domain.config.water_temperature is not None or domain.input_config.file_water_temperature is not None:
                 process_water_temperature(domain)
 
             domain.write_global_attributes()
@@ -212,10 +196,7 @@ def create_driver(
 
             process_resolved_vegetation(domain, config.settings)
 
-            if (
-                domain.config.water_temperature is not None
-                or domain.input_config.file_water_temperature is not None
-            ):
+            if domain.config.water_temperature is not None or domain.input_config.file_water_temperature is not None:
                 process_water_temperature(domain)
 
             consistency_check_update_surface_fraction(domain)
@@ -255,10 +236,7 @@ def check_overlap(domain: CSDDomain) -> None:
     children = domain.get_children()
     for child1, child2 in combinations(children, 2):
         if child1.overlaps(child2):
-            logger.warning(
-                f"Domains {child1.name} and {child2.name} overlap. "
-                + "Only one-way nesting is allowed."
-            )
+            logger.warning(f"Domains {child1.name} and {child2.name} overlap. " + "Only one-way nesting is allowed.")
 
     for child in children:
         check_overlap(child)
@@ -370,24 +348,14 @@ def process_coordinates(domain: CSDDomain, zt_min: float) -> None:
         domain.input_config.add_used_file(domain.input_config.files["lon"][0])
 
         # Calculate position of origin. Added as global attributes later
-        domain.origin_x = float(x_utm_origin[0, 0]) - 0.5 * (
-            float(x_utm_origin[0, 1]) - float(x_utm_origin[0, 0])
-        )
-        domain.origin_y = float(y_utm_origin[0, 0]) - 0.5 * (
-            float(y_utm_origin[1, 0]) - float(y_utm_origin[0, 0])
-        )
-        domain.origin_lon = float(lon_origin[0, 0]) - 0.5 * (
-            float(lon_origin[0, 1]) - float(lon_origin[0, 0])
-        )
-        domain.origin_lat = float(lat_origin[0, 0]) - 0.5 * (
-            float(lat_origin[1, 0]) - float(lat_origin[0, 0])
-        )
+        domain.origin_x = float(x_utm_origin[0, 0]) - 0.5 * (float(x_utm_origin[0, 1]) - float(x_utm_origin[0, 0]))
+        domain.origin_y = float(y_utm_origin[0, 0]) - 0.5 * (float(y_utm_origin[1, 0]) - float(y_utm_origin[0, 0]))
+        domain.origin_lon = float(lon_origin[0, 0]) - 0.5 * (float(lon_origin[0, 1]) - float(lon_origin[0, 0]))
+        domain.origin_lat = float(lat_origin[0, 0]) - 0.5 * (float(lat_origin[1, 0]) - float(lat_origin[0, 0]))
 
         # Read x and y values
         domain.x_global.values = domain.read_nc_1d(domain.input_config.files["x_utm"][0], "x")
-        domain.y_global.values = domain.read_nc_1d(
-            domain.input_config.files["y_utm"][0], "y", x0=domain.y0, x1=domain.y1
-        )
+        domain.y_global.values = domain.read_nc_1d(domain.input_config.files["y_utm"][0], "y", x0=domain.y0, x1=domain.y1)
 
         # Read and write lon, lat and UTM coordinates
         lat = domain.read_nc_2d(domain.input_config.files["lat"][0])
@@ -402,16 +370,8 @@ def process_coordinates(domain: CSDDomain, zt_min: float) -> None:
 
     # Shift x and y coordinates for x and y local cell centre coordinates of domain
     # Used as output dimensions
-    domain.x.values = (
-        domain.x_global.values
-        - min(domain.x_global.values.flatten())
-        + domain.config.pixel_size / 2.0
-    )
-    domain.y.values = (
-        domain.y_global.values
-        - min(domain.y_global.values.flatten())
-        + domain.config.pixel_size / 2.0
-    )
+    domain.x.values = domain.x_global.values - min(domain.x_global.values.flatten()) + domain.config.pixel_size / 2.0
+    domain.y.values = domain.y_global.values - min(domain.y_global.values.flatten()) + domain.config.pixel_size / 2.0
 
     domain.lat.to_nc(lat)
     domain.lon.to_nc(lon)
@@ -441,25 +401,13 @@ def process_coordinates(domain: CSDDomain, zt_min: float) -> None:
         tmp_y1 = np.searchsorted(domain.parent.y_global.values, domain.y_global.values[-1]) + 1
 
         if tmp_x0 < 0:
-            raise ValueError(
-                f"Parent {domain.parent.name} not fully covering "
-                + f"child {domain.name} on the left border"
-            )
+            raise ValueError(f"Parent {domain.parent.name} not fully covering " + f"child {domain.name} on the left border")
         if tmp_y0 < 0:
-            raise ValueError(
-                f"Parent {domain.parent.name} not fully covering "
-                + f"child {domain.name} on the bottom border"
-            )
+            raise ValueError(f"Parent {domain.parent.name} not fully covering " + f"child {domain.name} on the bottom border")
         if tmp_x1 > domain.parent.x_global.values.shape[0]:
-            raise ValueError(
-                f"Parent {domain.parent.name} not fully covering "
-                + f"child {domain.name} on the right border"
-            )
+            raise ValueError(f"Parent {domain.parent.name} not fully covering " + f"child {domain.name} on the right border")
         if tmp_y1 > domain.parent.y_global.values.shape[0]:
-            raise ValueError(
-                f"Parent {domain.parent.name} not fully covering "
-                + f"child {domain.name} on the top border"
-            )
+            raise ValueError(f"Parent {domain.parent.name} not fully covering " + f"child {domain.name} on the top border")
 
         tmp_x = domain.parent.x_global.values[tmp_x0:tmp_x1]
         tmp_y = domain.parent.y_global.values[tmp_y0:tmp_y1]
@@ -467,9 +415,7 @@ def process_coordinates(domain: CSDDomain, zt_min: float) -> None:
         zt_parent = domain.parent.zt.values[tmp_y0:tmp_y1, tmp_x0:tmp_x1]
 
         # Interpolate array and bring to PALM grid of child domain.
-        zt_ip = interpolate_2d(
-            zt_parent, tmp_x, tmp_y, domain.x_global.values, domain.y_global.values
-        )
+        zt_ip = interpolate_2d(zt_parent, tmp_x, tmp_y, domain.x_global.values, domain.y_global.values)
         zt_ip = height_to_z_grid(zt_ip, domain.parent.config.dz)
 
         # Shift the child terrain height according to the parent mean terrain height.
@@ -481,18 +427,14 @@ def process_coordinates(domain: CSDDomain, zt_min: float) -> None:
         logger.debug(f"Average domain height: {z_mean:0.2f} m.")
         logger.debug(f"Avergage covered parent domain height: {z_mean_parent:0.2f} m.")
         dz_mean = z_mean - z_mean_parent
-        logger.info(
-            f"Shifting down terrain height by {dz_mean:0.2f} m to adjust for parent domain height."
-        )
+        logger.info(f"Shifting down terrain height by {dz_mean:0.2f} m to adjust for parent domain height.")
         domain.zt.values = domain.zt.values - dz_mean
         if domain.zt.values is None:
             raise ValueError(f"Domain {domain.name} has undefined zt values")
 
         # Blend over the parent and child terrain height within a radius of 50 px (or less if
         # domain is smaller than 50 px).
-        domain.zt.values = ma.MaskedArray(
-            blend_array_2d(domain.zt.values, zt_ip, min(50, min(domain.zt.values.shape) * 0.5))
-        )
+        domain.zt.values = ma.MaskedArray(blend_array_2d(domain.zt.values, zt_ip, min(50, min(domain.zt.values.shape) * 0.5)))
 
     # If necessary, bring terrain height to PALM's vertical grid. This is either forced by
     # the user or implicitly by using interpolation for a child domain.
@@ -544,8 +486,7 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
         buildings_2d_original_mask = ma.getmaskarray(buildings_2d).copy()
         n_border = int(np.ceil(domain.config.building_free_border_width / domain.config.pixel_size))
         logger.info(
-            f"Applying building free border of {domain.config.building_free_border_width:0.2f} m "
-            + f"({n_border} pixels)."
+            f"Applying building free border of {domain.config.building_free_border_width:0.2f} m " + f"({n_border} pixels)."
         )
         buildings_2d[:n_border, :] = ma.masked
         buildings_2d[-n_border:, :] = ma.masked
@@ -568,8 +509,7 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
     logger.warning_argwhere(
         "Found",
         buildings_2d_small,
-        "building pixels with height < 1/2 dz.\n"
-        + "They will be treated by PALM as a flat surface.",
+        "building pixels with height < 1/2 dz.\n" + "They will be treated by PALM as a flat surface.",
     )
 
     # Apply building mask to building_id and building_type.
@@ -591,9 +531,7 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
 
         # Check if there is a bridges_id (no default value applied) for all bridges_2d pixels.
         bridge_without_id = ma.getmaskarray(bridges_id)[~ma.getmaskarray(bridges_2d)]
-        logger.critical_argwhere_raise(
-            "Bridge ID missing for", bridge_without_id, "bridge pixels defined by bridges_2d."
-        )
+        logger.critical_argwhere_raise("Bridge ID missing for", bridge_without_id, "bridge pixels defined by bridges_2d.")
 
         if bridges_2d.mask.all():
             logger.info("No bridges in domain.")
@@ -602,8 +540,7 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
         logger.warning_argwhere(
             "Found",
             bridges_2d_small,
-            "bridge pixels with height < 1/2 dz.\n"
-            + "They will be treated by PALM as a flat surface.",
+            "bridge pixels with height < 1/2 dz.\n" + "They will be treated by PALM as a flat surface.",
         )
 
         buildings_bridges_overlap = ~ma.getmaskarray(buildings_2d) & ~ma.getmaskarray(bridges_2d)
@@ -615,9 +552,7 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
 
         bridges_id.mask = bridges_2d.mask.copy()
         building_id = ma.where(buildings_2d.mask & ~bridges_2d.mask, bridges_id, building_id)
-        building_type = ma.where(
-            buildings_2d.mask & ~bridges_2d.mask, IndexBuildingType.bridges, building_type
-        )
+        building_type = ma.where(buildings_2d.mask & ~bridges_2d.mask, IndexBuildingType.bridges, building_type)
 
     domain.buildings_2d.to_nc(buildings_2d)
     domain.building_id.to_nc(building_id)
@@ -678,15 +613,9 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
     def normalize_building_fractions(fractions: np.ma.MaskedArray) -> None:
         """Normalize building surface fractions for wall, window and green of each surface level."""
         for surface_level in ["gfl", "agfl", "roof"]:
-            mask_wall = ma.getmaskarray(fractions)[
-                IndexBuildingSurfaceType[f"wall_{surface_level}"], :, :
-            ]
-            mask_windows = ma.getmaskarray(fractions)[
-                IndexBuildingSurfaceType[f"window_{surface_level}"], :, :
-            ]
-            mask_green = ma.getmaskarray(fractions)[
-                IndexBuildingSurfaceType[f"green_{surface_level}"], :, :
-            ]
+            mask_wall = ma.getmaskarray(fractions)[IndexBuildingSurfaceType[f"wall_{surface_level}"], :, :]
+            mask_windows = ma.getmaskarray(fractions)[IndexBuildingSurfaceType[f"window_{surface_level}"], :, :]
+            mask_green = ma.getmaskarray(fractions)[IndexBuildingSurfaceType[f"green_{surface_level}"], :, :]
             n_undefined = mask_wall.astype(int) + mask_windows.astype(int) + mask_green.astype(int)
             to_zero = (n_undefined == 1) | (n_undefined == 2)
             # Warn when setting undefined fractions to 0.
@@ -769,12 +698,8 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
         # Global input data, which will be applied to all building pixels
         input_global = getattr(domain.config, variable_name)
         # Variables to read for local input data
-        input_local_variable = [
-            var for var in domain.input_config.files.keys() if var.startswith(variable_name)
-        ] + [
-            var
-            for var in domain.input_config.columns.values()
-            if isinstance(var, str) and var.startswith(variable_name)
+        input_local_variable = [var for var in domain.input_config.files.keys() if var.startswith(variable_name)] + [
+            var for var in domain.input_config.columns.values() if isinstance(var, str) and var.startswith(variable_name)
         ]
 
         # Output variable and field to fill
@@ -839,9 +764,7 @@ def process_buildings_bridges(domain: CSDDomain, settings: CSDConfigSettings) ->
                         input_local,
                     )
                 else:
-                    output_field[row.level, :, :] = ma.where(
-                        input_local.mask, output_field[row.level, :, :], input_local
-                    )
+                    output_field[row.level, :, :] = ma.where(input_local.mask, output_field[row.level, :, :], input_local)
 
         if output_field.mask.all():
             return
@@ -957,14 +880,10 @@ def process_lcz(
     if domain.config.dcep:
         urban_fraction = lcz_types.urban_fraction_from_lcz_map(lcz_type)
         urban_class = lcz_types.urban_class_fraction_from_lcz_map(lcz_type)
-        street_direction_fraction = lcz_types.street_direction_fraction_from_lcz_map(
-            lcz_type, domain.config.udir
-        )
+        street_direction_fraction = lcz_types.street_direction_fraction_from_lcz_map(lcz_type, domain.config.udir)
         street_width = lcz_types.street_width_from_lcz_map(lcz_type, domain.config.udir)
         building_width = lcz_types.building_width_from_lcz_map(lcz_type, domain.config.udir)
-        building_height = lcz_types.building_height_from_lcz_map(
-            lcz_type, domain.config.z_uhl, domain.config.udir
-        )
+        building_height = lcz_types.building_height_from_lcz_map(lcz_type, domain.config.z_uhl, domain.config.udir)
 
         domain.nuc.values = ma.arange(0, 1)
         domain.streetdir.values = ma.masked_array(domain.config.udir)
@@ -1061,8 +980,7 @@ def process_types(domain: CSDDomain) -> None:
         type_undefined = list(map(tuple, np.argwhere(n_type_undefined)))
         if not domain.replace_invalid_input_values:
             logger.critical_raise(
-                "No surface types defined for some pixels. "
-                + "Enable replace_invalid_input_values for automatic replacement.",
+                "No surface types defined for some pixels. " + "Enable replace_invalid_input_values for automatic replacement.",
             )
         if value_defaults["vegetation_type"].default is None:
             raise ValueError("No default vegetation type defined.")
@@ -1072,9 +990,7 @@ def process_types(domain: CSDDomain) -> None:
         )
         logger.debug_indent("Coordinates of undefined surface types:")
         logger.debug_indent(", ".join(map(str, type_undefined)))
-        vegetation_type = ma.where(
-            n_type_undefined, value_defaults["vegetation_type"].default, vegetation_type
-        )
+        vegetation_type = ma.where(n_type_undefined, value_defaults["vegetation_type"].default, vegetation_type)
 
     # Remove soil_type for pixels without vegetation_type and pavement_type.
     soil_type = ma.where(vegetation_type.mask & pavement_type.mask, ma.masked, soil_type)
@@ -1167,9 +1083,9 @@ def process_resolved_vegetation(
             )
     else:
         # Remove vegetation_type when vegetation height indicates low vegetation
-        high_vegetation_to_short_grass = (
-            vegetation_height < settings.height_high_vegetation_lower_threshold
-        ).filled(False) & ma_isin(vegetation_type, VT_HIGH_VEGETATION)
+        high_vegetation_to_short_grass = (vegetation_height < settings.height_high_vegetation_lower_threshold).filled(
+            False
+        ) & ma_isin(vegetation_type, VT_HIGH_VEGETATION)
         logger.warning_argwhere(
             "Replacing",
             high_vegetation_to_short_grass,
@@ -1189,9 +1105,7 @@ def process_resolved_vegetation(
     if settings.lai_low_vegetation_default is None:
         lai_lsm = ma.where(domain.is_resolved_vegetation2d(), ma.masked, lai)
     else:
-        lai_lsm = ma.where(
-            domain.is_resolved_vegetation2d(), settings.lai_low_vegetation_default, lai
-        )
+        lai_lsm = ma.where(domain.is_resolved_vegetation2d(), settings.lai_low_vegetation_default, lai)
 
     # Fill remaining high vegetation pixels without LAI or with LAI = 0 with default value for high
     # vegetation.
@@ -1208,8 +1122,7 @@ def process_resolved_vegetation(
     # vegetation.
     if settings.lai_low_vegetation_default is not None:
         lai_lsm = ma.where(
-            lai_lsm.mask
-            | (lai_lsm == 0.0).filled(False) & ~ma_isin(vegetation_type, VT_HIGH_VEGETATION),
+            lai_lsm.mask | (lai_lsm == 0.0).filled(False) & ~ma_isin(vegetation_type, VT_HIGH_VEGETATION),
             settings.lai_low_vegetation_default,
             lai_lsm,
         )
@@ -1410,9 +1323,7 @@ def process_single_trees(
     # Remove LAD volumes that are inside buildings
     if not domain.config.overhanging_trees:
         buildings_2d = domain.buildings_2d.from_nc()
-        building_col_3d = np.repeat(
-            ~ma.getmaskarray(buildings_2d)[np.newaxis, :, :], domain.lad.values.shape[0], axis=0
-        )
+        building_col_3d = np.repeat(~ma.getmaskarray(buildings_2d)[np.newaxis, :, :], domain.lad.values.shape[0], axis=0)
 
         ma.masked_where(building_col_3d, domain.lad.values, copy=False)
         ma.masked_where(building_col_3d, domain.bad.values, copy=False)
@@ -1460,9 +1371,7 @@ def process_vegetation_patches(
     # height_rel_resolved_vegetation_lower_threshold * dz, find all pixels with patch height first
     # and compare with the filtered pixels.
     patch_prelim = ~ma.getmaskarray(patch_height)
-    patch = (
-        patch_height >= settings.height_rel_resolved_vegetation_lower_threshold * domain.config.dz
-    ).filled(False)
+    patch = (patch_height >= settings.height_rel_resolved_vegetation_lower_threshold * domain.config.dz).filled(False)
     # Low height pixels with patch height < height_rel_resolved_vegetation_lower_threshold * dz
     low_height = patch_prelim & ~patch
     logger.warning_argwhere(
@@ -1484,11 +1393,9 @@ def process_vegetation_patches(
         high_vegetation_prelim = ma_isin(vegetation_type, VT_HIGH_VEGETATION).filled(False)
         high_vegetation = high_vegetation_prelim & ~low_height
         logger.warning_argwhere(
-            "Of the the pixels with patch height < "
-            + f"{settings.height_rel_resolved_vegetation_lower_threshold} * dz,",
+            "Of the the pixels with patch height < " + f"{settings.height_rel_resolved_vegetation_lower_threshold} * dz,",
             high_vegetation_prelim & ~high_vegetation,
-            "pixels are of a high vegetation type.\n"
-            + "They are not treated as vegetation patches.",
+            "pixels are of a high vegetation type.\n" + "They are not treated as vegetation patches.",
         )
         # Add high vegetation pixels.
         patch = patch | high_vegetation
@@ -1501,8 +1408,7 @@ def process_vegetation_patches(
     type_defined_prelim = ~ma.getmaskarray(patch_type)
     type_defined = type_defined_prelim & ~low_height
     logger.warning_argwhere(
-        "Of the the pixels with patch height < "
-        + f"{settings.height_rel_resolved_vegetation_lower_threshold} * dz,",
+        "Of the the pixels with patch height < " + f"{settings.height_rel_resolved_vegetation_lower_threshold} * dz,",
         type_defined_prelim & ~type_defined,
         "pixels have a defined patch type.\n" + "They are not treated as vegetation patches.",
     )
@@ -1528,8 +1434,7 @@ def process_vegetation_patches(
     logger.warning_argwhere(
         f"Of the {'remaining ' if filtered else ''}identified vegetation patch pixels,",
         patch & single_trees,
-        "are already covered by single tree pixels.\n"
-        + "They are not treated as vegetation patches.",
+        "are already covered by single tree pixels.\n" + "They are not treated as vegetation patches.",
     )
     patch = patch & ~single_trees
     # Remember when pixels are removed from the vegetation patches
@@ -1563,15 +1468,13 @@ def process_vegetation_patches(
     else:
         if settings.lai_low_vegetation_default is not None:
             lai = ma.where(
-                lai.mask
-                & (patch_height < settings.height_high_vegetation_lower_threshold).filled(False),
+                lai.mask & (patch_height < settings.height_high_vegetation_lower_threshold).filled(False),
                 settings.lai_low_vegetation_default,
                 lai,
             )
         if settings.lai_high_vegetation_default is not None:
             lai = ma.where(
-                lai.mask
-                & (patch_height >= settings.height_high_vegetation_lower_threshold).filled(False),
+                lai.mask & (patch_height >= settings.height_high_vegetation_lower_threshold).filled(False),
                 settings.lai_high_vegetation_default,
                 lai,
             )
@@ -1629,12 +1532,8 @@ def process_vegetation_patches(
             fillup = ma.masked_all((nz_diff, domain.y.size, domain.x.size))
             domain.lad.values = ma.MaskedArray(ma.concatenate((domain.lad.values, fillup), axis=0))
             domain.bad.values = ma.MaskedArray(ma.concatenate((domain.bad.values, fillup), axis=0))
-            domain.tree_id.values = ma.MaskedArray(
-                ma.concatenate((domain.tree_id.values, fillup), axis=0)
-            )
-            domain.tree_type.values = ma.MaskedArray(
-                ma.concatenate((domain.tree_type.values, fillup), axis=0)
-            )
+            domain.tree_id.values = ma.MaskedArray(ma.concatenate((domain.tree_id.values, fillup), axis=0))
+            domain.tree_type.values = ma.MaskedArray(ma.concatenate((domain.tree_type.values, fillup), axis=0))
 
         # Add current fields to former fields.
         # Use negative patch_id to distinguish from tree_id.
@@ -1685,9 +1584,7 @@ def process_water_temperature(domain: CSDDomain) -> None:
     # Set water temperature based on input file.
     water_temperature_from_file = domain.read(InputData.water_temperature)
     if not water_temperature_from_file.mask.all():
-        water_temperature_from_file.mask = ma.mask_or(
-            water_temperature_from_file.mask, water_type.mask
-        )
+        water_temperature_from_file.mask = ma.mask_or(water_temperature_from_file.mask, water_type.mask)
         water_pars[IndexWaterPars.water_temperature, :, :] = ma.where(
             ~water_temperature_from_file.mask,
             water_temperature_from_file,
@@ -1710,9 +1607,7 @@ def consistency_check_update_surface_fraction(domain: CSDDomain) -> None:
     soil_type = domain.soil_type.from_nc()
 
     # Check for consistency and fill empty fields with default vegetation type.
-    consistency_array, test = check_consistency_4(
-        vegetation_type, building_type, pavement_type, water_type
-    )
+    consistency_array, test = check_consistency_4(vegetation_type, building_type, pavement_type, water_type)
 
     # Check for consistency and fill empty fields with default vegetation type.
     consistency_array, test = check_consistency_3(vegetation_type, pavement_type, soil_type)
