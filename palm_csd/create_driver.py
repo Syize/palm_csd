@@ -71,7 +71,7 @@ logger = cast(StatusLogger, logging.getLogger(__name__))
 
 
 def create_driver(
-    input_configuration_file: Union[str, PathLike],
+    input_configuration: Union[str, PathLike, dict],
     verbose: Optional[Dict[str, bool]] = None,
     show_plot: bool = False,
     pdf: bool = False,
@@ -80,7 +80,7 @@ def create_driver(
     """Main routine for creating the static driver.
 
     Args:
-        input_configuration_file: Input configuration YAML file.
+        input_configuration: Input configuration YAML file or Dict.
         verbose: Dictionary of debug flags and if they are enabled. Defaults to None.
         show_plot: Show a plot of the result. Defaults to False.
         pdf: Save the plot of the static driver as PDF. Defaults to False.
@@ -92,16 +92,20 @@ def create_driver(
 
     logger.status("Reading configuration.")
 
-    # Load yml configuration file.
-    try:
-        with open(input_configuration_file, "r", encoding="utf-8") as file:
-            input_configuration_dict = yaml.safe_load(file)
-    except FileNotFoundError:
-        copyfile(YML_CSD_DEFAULT, input_configuration_file)
-        logger.info(f"Configuration file {input_configuration_file} not found.")
-        logger.info("A template file has been copied to the input path.")
-        logger.info("Change it and run palm_csd again.")
-        exit(1)
+    if isinstance(input_configuration, dict):
+        input_configuration_dict = input_configuration
+
+    else:
+        # Load yml configuration file.
+        try:
+            with open(input_configuration, "r", encoding="utf-8") as file:
+                input_configuration_dict = yaml.safe_load(file)
+        except FileNotFoundError:
+            copyfile(YML_CSD_DEFAULT, input_configuration)
+            logger.info(f"Configuration file {input_configuration} not found.")
+            logger.info("A template file has been copied to the input path.")
+            logger.info("Change it and run palm_csd again.")
+            exit(1)
 
     # Read configuration file and set parameters accordingly.
     config = CSDConfig(input_configuration_dict)

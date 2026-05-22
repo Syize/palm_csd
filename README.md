@@ -12,6 +12,16 @@ You can install `palm_csd` from this repo directly:
 uv add "palm_csd @ git+https://github.com/Syize/palm_csd"
 ```
 
+## Usage
+
+### In-code interface.
+
+`palm_csd.create_driver.create_driver()` has been changed. It can accepts an dictionary for the first argument now, which means you can load YAML file by yourself, change its values, and pass it to `palm_csd` to create static drivers.
+
+### Command line interface
+
+See the official usage below.
+
 ---
 
 Processing tool for creating PALM Input Data Standard (PIDS) conform static driver files from rastered netCDF input.
